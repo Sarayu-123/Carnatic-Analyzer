@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { useTheme } from "next-themes";
-import { Music, BookOpen, Drum, AudioWaveform, PenLine, Sparkles, Sun, Moon } from "lucide-react";
+import { Music, BookOpen, Drum, AudioWaveform, PenLine, Sparkles, Sun, Moon, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { href: "/", label: "Raga Identifier", icon: Music },
@@ -16,6 +17,7 @@ const navItems = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { theme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -50,15 +52,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            data-testid="theme-toggle"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {user && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <User className="w-3.5 h-3.5" />
+                  <span className="font-medium text-foreground">{user.username}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Sign out"
+                  onClick={logout}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              data-testid="theme-toggle"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
       </header>
 
