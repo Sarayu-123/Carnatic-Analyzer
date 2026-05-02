@@ -9,6 +9,7 @@ import RagaBrowser from "@/pages/RagaBrowser";
 import TalaReference from "@/pages/TalaReference";
 import PitchDetect from "@/pages/PitchDetect";
 import Compose from "@/pages/Compose";
+import GamakaExplorer from "@/pages/GamakaExplorer";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/tala" component={TalaReference} />
         <Route path="/detect" component={PitchDetect} />
         <Route path="/compose" component={Compose} />
+        <Route path="/gamakas" component={GamakaExplorer} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

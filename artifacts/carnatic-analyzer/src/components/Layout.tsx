@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useTheme } from "next-themes";
-import { Music, BookOpen, Drum, AudioWaveform, PenLine, Sun, Moon } from "lucide-react";
+import { Music, BookOpen, Drum, AudioWaveform, PenLine, Sparkles, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/tala", label: "Tala Reference", icon: Drum },
   { href: "/detect", label: "Pitch Detect", icon: AudioWaveform },
   { href: "/compose", label: "Compose", icon: PenLine },
+  { href: "/gamakas", label: "Gamakas", icon: Sparkles },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
