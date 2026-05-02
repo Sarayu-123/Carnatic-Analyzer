@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Pause, RotateCcw, ChevronDown, ChevronUp, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,81 @@ import {
   type Tala,
   type Jaati,
 } from "@/data/talas";
+
+// ── Audio click synthesis ──────────────────────────────────────────────────────
+
+type ClickType = "sam" | "anga" | "beat";
+
+function playClick(ctx: AudioContext, type: ClickType, volume: number): void {
+  const now = ctx.currentTime;
+
+  if (type === "sam") {
+    // Sam: loud pitched click + short noise burst — unmistakable
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(900, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
+    gain.gain.setValueAtTime(volume * 0.8, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.09);
+
+    // Extra body with sine
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(220, now);
+    gain2.gain.setValueAtTime(volume * 0.4, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now);
+    osc2.stop(now + 0.13);
+  } else if (type === "anga") {
+    // Anga start: medium wood-block-like click
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(150, now + 0.04);
+    gain.gain.setValueAtTime(volume * 0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.07);
+  } else {
+    // Regular beat: soft low click
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(380, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.03);
+    gain.gain.setValueAtTime(volume * 0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+}
+
+/** Given the flat beat index and the anga pattern, return the click type. */
+function getClickType(globalBeat: number, aksharaPattern: number[]): ClickType {
+  if (globalBeat === 0) return "sam";
+  let acc = 0;
+  for (const count of aksharaPattern) {
+    if (globalBeat === acc) return "anga";
+    acc += count;
+    if (globalBeat < acc) return "beat";
+  }
+  return "beat";
+}
+
+// ── Beat visualizer ────────────────────────────────────────────────────────────
 
 function BeatVisualizer({
   pattern,
@@ -37,23 +112,40 @@ function BeatVisualizer({
     <div className="flex flex-wrap gap-1.5" data-testid="beat-visualizer">
       {cells.map((cell) => {
         const isActive = isPlaying && cell.globalIdx === currentBeat % total;
-        const isSam = cell.globalIdx === 0; // sam (first beat)
+        const isSam = cell.globalIdx === 0;
+        const isAngaStart = cell.beatIdx === 0 && cell.angaIdx > 0;
         return (
           <motion.div
             key={cell.globalIdx}
             animate={
               isActive
-                ? { scale: 1.2, backgroundColor: "hsl(var(--primary))" }
-                : { scale: 1, backgroundColor: isSam ? "hsl(var(--primary) / 0.2)" : "hsl(var(--muted))" }
+                ? {
+                    scale: isSam ? 1.3 : isAngaStart ? 1.2 : 1.1,
+                    backgroundColor: isSam
+                      ? "hsl(var(--primary))"
+                      : isAngaStart
+                      ? "hsl(var(--primary) / 0.75)"
+                      : "hsl(var(--primary) / 0.55)",
+                  }
+                : {
+                    scale: 1,
+                    backgroundColor: isSam
+                      ? "hsl(var(--primary) / 0.18)"
+                      : "hsl(var(--muted))",
+                  }
             }
-            transition={{ duration: 0.08 }}
+            transition={{ duration: 0.07 }}
             className={[
               "w-8 h-8 rounded-md flex items-center justify-center text-xs font-mono font-semibold",
               isSam ? "ring-1 ring-primary/50" : "",
-              cell.beatIdx === 0 && cell.angaIdx > 0 ? "ml-2" : "",
+              isAngaStart ? "ml-2" : "",
             ].join(" ")}
             style={{
-              color: isActive ? "hsl(var(--primary-foreground))" : isSam ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
+              color: isActive
+                ? "hsl(var(--primary-foreground))"
+                : isSam
+                ? "hsl(var(--primary))"
+                : "hsl(var(--muted-foreground))",
             }}
           >
             {cell.globalIdx + 1}
@@ -64,15 +156,20 @@ function BeatVisualizer({
   );
 }
 
-function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }) {
+// ── Metronome card ─────────────────────────────────────────────────────────────
+
+function MetronomeCard({ tala }: { tala: Tala }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(60);
   const [currentBeat, setCurrentBeat] = useState(-1);
-  const [selectedJaati, setSelectedJaati] = useState<Jaati>(
-    (["tisra", "chatusra", "khanda", "misra", "sankirna"] as Jaati[])[jaatiIdx]
-  );
+  const [muted, setMuted] = useState(false);
+  const [selectedJaati, setSelectedJaati] = useState<Jaati>("chatusra");
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const beatRef = useRef(0);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
 
   const variant = tala.variants.find((v) => v.jaati === selectedJaati)!;
   const total = variant.totalAksharas;
@@ -84,27 +181,51 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
     }
   }, []);
 
+  const getOrCreateAudioCtx = useCallback(() => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+      audioCtxRef.current = new AudioContext();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
   useEffect(() => {
     if (isPlaying) {
+      const ctx = getOrCreateAudioCtx();
       beatRef.current = 0;
       setCurrentBeat(0);
+
+      // Play the first click immediately
+      if (!mutedRef.current) {
+        playClick(ctx, "sam", 0.8);
+      }
+
       intervalRef.current = setInterval(() => {
         beatRef.current = (beatRef.current + 1) % total;
-        setCurrentBeat(beatRef.current);
+        const beat = beatRef.current;
+        setCurrentBeat(beat);
+
+        if (!mutedRef.current) {
+          const freshCtx = getOrCreateAudioCtx();
+          const clickType = getClickType(beat, variant.aksharaPattern);
+          playClick(freshCtx, clickType, 0.8);
+        }
       }, (60 / bpm) * 1000);
     } else {
       clearTimer();
       setCurrentBeat(-1);
     }
     return clearTimer;
-  }, [isPlaying, bpm, total, clearTimer]);
+  }, [isPlaying, bpm, total, variant.aksharaPattern, clearTimer, getOrCreateAudioCtx]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     clearTimer();
     setIsPlaying(false);
     beatRef.current = 0;
     setCurrentBeat(-1);
-  };
+  }, [clearTimer]);
 
   const jaatis: Jaati[] = ["tisra", "chatusra", "khanda", "misra", "sankirna"];
 
@@ -115,7 +236,7 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
           <h3 className="font-semibold text-foreground">{tala.name} Tala</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{tala.description}</p>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {tala.angaStructure.map((a, i) => (
             <span key={i} className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">
               {ANGA_SYMBOLS[a]}
@@ -156,7 +277,7 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
           currentBeat={currentBeat}
           isPlaying={isPlaying}
         />
-        <div className="flex gap-3 mt-2">
+        <div className="flex gap-3 mt-2 flex-wrap">
           {variant.angaSequence.map((a, i) => (
             <div key={i} className="text-xs text-muted-foreground">
               <span className="font-mono">{ANGA_SYMBOLS[a]}</span> = {ANGA_NAMES[a]} ({variant.aksharaPattern[i]})
@@ -165,8 +286,23 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
         </div>
       </div>
 
+      {/* Click legend */}
+      {isPlaying && (
+        <div className="flex gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary" /> Sam
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/70" /> Anga start
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/50" /> Beat
+          </span>
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="flex items-center gap-3 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap">
         <Button
           size="sm"
           variant={isPlaying ? "secondary" : "default"}
@@ -177,6 +313,7 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           {isPlaying ? "Pause" : "Play"}
         </Button>
+
         <Button
           size="sm"
           variant="ghost"
@@ -185,7 +322,19 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
         >
           <RotateCcw className="w-3.5 h-3.5" />
         </Button>
-        <div className="flex items-center gap-2 flex-1">
+
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setMuted((m) => !m)}
+          data-testid={`mute-${tala.name}`}
+          className={muted ? "text-muted-foreground" : "text-foreground"}
+          title={muted ? "Unmute" : "Mute"}
+        >
+          {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </Button>
+
+        <div className="flex items-center gap-2 flex-1 min-w-32">
           <span className="text-xs text-muted-foreground shrink-0">{bpm} BPM</span>
           <Slider
             min={30}
@@ -202,6 +351,8 @@ function MetronomeCard({ tala, jaatiIdx = 1 }: { tala: Tala; jaatiIdx?: number }
   );
 }
 
+// ── Page ───────────────────────────────────────────────────────────────────────
+
 export default function TalaReference() {
   const [expandedSection, setExpandedSection] = useState<string | null>("common");
 
@@ -210,7 +361,7 @@ export default function TalaReference() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Tala Reference</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Interactive reference for the Suladi Sapta Talas with beat visualizer
+          Interactive metronome for the Suladi Sapta Talas — distinct clicks for Sam, anga starts, and beats
         </p>
       </div>
 
@@ -278,8 +429,8 @@ export default function TalaReference() {
           Interactive Tala Metronome
         </h2>
         <div className="space-y-4">
-          {TALAS.map((tala, i) => (
-            <MetronomeCard key={tala.name} tala={tala} jaatiIdx={1} />
+          {TALAS.map((tala) => (
+            <MetronomeCard key={tala.name} tala={tala} />
           ))}
         </div>
       </div>
