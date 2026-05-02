@@ -7,6 +7,7 @@ import { Layout } from "@/components/Layout";
 import RagaIdentifier from "@/pages/RagaIdentifier";
 import RagaBrowser from "@/pages/RagaBrowser";
 import TalaReference from "@/pages/TalaReference";
+import PitchDetect from "@/pages/PitchDetect";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,7 @@ function Router() {
         <Route path="/" component={RagaIdentifier} />
         <Route path="/ragas" component={RagaBrowser} />
         <Route path="/tala" component={TalaReference} />
+        <Route path="/detect" component={PitchDetect} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
