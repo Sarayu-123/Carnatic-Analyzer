@@ -16,6 +16,24 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### Carnatic Analyzer (`artifacts/carnatic-analyzer`)
+- **Type**: react-vite, frontend-only (no backend)
+- **Preview path**: `/`
+- **Pages**:
+  - `/` — Raga Identifier: interactive swara pad that matches ragas in real time
+  - `/ragas` — Raga Browser: searchable/filterable list of 50+ ragas with full detail
+  - `/tala` — Tala Reference: all 7 Suladi Sapta Talas with interactive metronome
+- **Data files**: `src/data/ragas.ts`, `src/data/talas.ts` (all knowledge embedded in frontend)
+- **Theme**: Warm concert-hall tones (veena wood browns, amber), dark mode via next-themes
+- **Dependencies**: framer-motion, next-themes, lucide-react, wouter, shadcn/ui
+
+### API Server (`artifacts/api-server`)
+- **Type**: Express 5 API
+- **Preview path**: `/api`
+- Currently provides only health check endpoint
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
